@@ -1,0 +1,46 @@
+{
+    "todohighlight.isEnable": true,
+    "todohighlight.isCaseSensitive": true,
+    "todohighlight.keywords": [
+        {
+            "text": "DEBUG:",
+            "color": "#444444",
+            "backgroundColor": "#ffb266",
+            "overviewRulerColor": "#000099"
+        },
+        {
+            "text": "NOTE:",
+            "color": "#dddddd",
+            "backgroundColor": "#339933",
+            "overviewRulerColor": "#339933"
+        },
+        {
+            "text": " INFO ",
+            "color": "#339933",
+            "backgroundColor": "none",
+            "overviewRulerColor": "#336600",
+            "border": "1px solid #339933",
+            "borderRadius": "1px", //NOTE: using borderRadius along with `border` or you will see nothing change
+        },
+        {
+            "text": "TODO:",
+            "color": "#dddddd",
+            "backgroundColor": "#990000",
+            "overviewRulerColor": "red"
+        },
+        {
+            "text": " BUG ",
+            "color": "#dddddd",
+            "backgroundColor": "#0000ff",
+            "overviewRulerColor": "#336600",
+            "border": "1px solid #ff3333",
+            "borderRadius": "1px", //NOTE: using borderRadius along with `border` or you will see nothing change
+        },
+        {
+            "text": "DONE:",
+            "color": "#333333",
+            "backgroundColor": "#33FF33",
+            "overviewRulerColor": "#339933"
+        }
+    ],
+}

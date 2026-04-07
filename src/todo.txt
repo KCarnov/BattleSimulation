@@ -1,0 +1,22 @@
+DONE: Handmade hero ep 05 => GetWindowDimensions 
+DONE: Handmade hero ep 06 => Basic key input with LParam and WParam for key down, key up
+
+DONE: Handmade hero ep 10 => QueryPerformanceCounter, for FPS display
+DONE: Handmade hero ep 11 => First separation of Platform code / Game code, with new header file/cpp file
+DONE: Handmade hero ep 13 => Platform independent input, game_input struct, win32 header file
+DONE: Handmade hero ep 14 => Platform independent memory
+TODO: Handmade hero ep 15 => DEBUG file IO
+ 
+DONE: Handmade hero ep 16 => Compiler switches
+DONE:TODO: Handmade hero ep 17 => Keyboard unified AND some also massive changes in build.bat (17:00)
+ 
+TODO: Handmade hero ep 18 => FPS fix a 60fps or 30 fps
+ 
+TODO: Handmade hero ep 21 => DLL 1
+TODO: Handmade hero ep 22 => DLL 2
+TODO: Handmade hero ep 23 => Playback save input
+ 
+TODO: Handmade hero ep 24 => Fix buges, rewrite some codes of everything
+TODO: Handmade hero ep 25 => Clean up of architecture of platform
+ 
+TODO: Handmade hero ep 26 => Start of game only architecture

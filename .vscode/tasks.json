@@ -1,0 +1,34 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "C_Project build (MSVC)",
+            "type": "shell",
+            "command": "cmd",
+            "args": [
+                "/c",
+                "build.bat",
+                "NON_DEBUG"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "C_Project build (MSVC) - DEBUG",
+            "type": "shell",
+            "command": "cmd",
+            "args": [
+                "/c",
+                "build.bat",
+                "DEBUG"
+            ],
+            "group": {
+                "kind": "build",
+            },
+            "problemMatcher": []
+        },
+    ]
+}
