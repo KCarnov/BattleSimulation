@@ -3,7 +3,7 @@
 
 
 #define COLOR_RGB(r,g,b) ((u64)(((u8)(b)|((u16)((u8)(g))<<8))|(((u64)(u8)(r))<<16)))
-#define NumSoldiers 300000
+#define NumSoldiers 300
 #include "application.h"
 
 void RenderToBuffer(app_backbuffer* buffer, i32 offsetx, i32 offsety)
@@ -18,6 +18,7 @@ void RenderToBuffer(app_backbuffer* buffer, i32 offsetx, i32 offsety)
     }
 }
 
+void DrawGrid(app_backbuffer* buffer);
 void DrawLine(app_backbuffer* buffer, vec2 startPoint, vec2 endPoint, u32 color = 0xff22ff)
 {
 
@@ -63,19 +64,19 @@ void DrawRectangle(app_backbuffer* buffer, f32 x, f32 y, f32 width, f32 height)
     DrawLine(buffer, {xBottomRight, yBottomRight},{x,yBottomRight});
     DrawLine(buffer, {x,yBottomRight},{x,y});
 }
-void DrawVector(app_backbuffer* buffer, vec2 startPoint, vec2 endPoint, u32 color = 0xff22ff)
+void DrawVector(app_backbuffer* buffer, vec2 startPoint, vec2 endPoint, u32 color = 0xff22ff, f32 scale = 1.0f)
 {
-    // Drawing main vector line :
-    DrawLine(buffer,startPoint, endPoint, color);
-    // Drawing vector arrow :
     vec2 dir = endPoint - startPoint;
     f32 norm = sqrt(dir.x*dir.x + dir.y*dir.y); // n is in pixel theorically
     vec2 dirn = dir/norm;
     vec2 n = {dirn.y,-dirn.x};
-    DrawLine(buffer,endPoint, endPoint - (5*dirn) - 3*n,color);
-    DrawLine(buffer,endPoint, endPoint - (5*dirn) + 3*n,color);
+    vec2 newEndPoint = startPoint + scale*dirn;
+    // Drawing main vector line :
+    DrawLine(buffer,startPoint, newEndPoint, color);
+    // Drawing vector arrow :
+    DrawLine(buffer,newEndPoint, newEndPoint - (5*dirn) - 3*n,color);
+    DrawLine(buffer,newEndPoint, newEndPoint - (5*dirn) + 3*n,color);
 }
-
 void DrawRectangleFilled(app_backbuffer* buffer, f32 x, f32 y, f32 width, f32 height)
 {
 
@@ -120,7 +121,7 @@ void ApplicationUpdateAndRender(app_memory*     appMemory,
         for(int i=0; i<NumSoldiers ; ++i)
         {
             appState->soldiers.position[i] =     {(f32)(10 + rand() % (1920-100+1)), (f32)(10 + rand() % (1080-100+1))};
-            appState->soldiers.velocity[i] =     {(f32)(-2.0f + rand() % 4),(f32)(-2.0f + rand() % 4)};
+            appState->soldiers.velocity[i] =     {(f32)(-4.0f + rand() % 8),(f32)(-4.0f + rand() % 8)};
             appState->soldiers.acceleration[i] = {(f32)(-0.5f  + rand() % 2),(f32)(-0.5f  + rand() % 2)};
         }
 
@@ -132,7 +133,6 @@ void ApplicationUpdateAndRender(app_memory*     appMemory,
     if (appInputs->Q.isPressed) { appState->offsets.x -= 10; }
     if (appInputs->Z.isPressed) { appState->offsets.y -= 10; }
     if (appInputs->S.isPressed) { appState->offsets.y += 10; }
-
     if(appInputs->mouseInputs.isPressed) {appState->pos = appInputs->mouseInputs.mousePosition;}
 
 
@@ -140,14 +140,12 @@ void ApplicationUpdateAndRender(app_memory*     appMemory,
     for(int i=0; i<NumSoldiers ; ++i)
     {
         appState->soldiers.position[i] = appState->soldiers.position[i] + 0.2f * appState->soldiers.velocity[i];
-        
-
         //appState->soldiers.velocity[i] = appState->soldiers.velocity[i] + 0.005f * appState->soldiers.acceleration[i];
     }
 
-
     // RENDERING
-    RenderToBuffer(appBackbuffer, (i32)appState->offsets.x, (i32)appState->offsets.y);
+    RenderToBuffer(appBackbuffer, (i32)appState->offsets.x, (i32)appState->offsets.y); // Clear to color TODO: update this
+    DrawGrid(appBackbuffer); // Draw some grid
 
     DrawRectangleFilled(appBackbuffer,appState->pos.x,appState->pos.y,4,4);
 
@@ -155,26 +153,32 @@ void ApplicationUpdateAndRender(app_memory*     appMemory,
     {
         DrawRectangleFilled(appBackbuffer,appState->soldiers.position[i].x,appState->soldiers.position[i].y,2.0f,2.0f);
 
-        // DrawVector(appBackbuffer,{appState->soldiers.position[i].x,appState->soldiers.position[i].y},
-        //                          {appState->soldiers.position[i].x + appState->soldiers.velocity[i].x,
-        //                           appState->soldiers.position[i].y + appState->soldiers.velocity[i].y}, 0xff0000);
+        DrawVector(appBackbuffer,{appState->soldiers.position[i].x,appState->soldiers.position[i].y},
+                                 {appState->soldiers.position[i].x + appState->soldiers.velocity[i].x,
+                                  appState->soldiers.position[i].y + appState->soldiers.velocity[i].y}, 0xff0000, 30.0f);
     }
 
+    // Tests
     DrawLine(appBackbuffer,{50,50}, appState->pos);
-
-    // Draw some grid
-    u32 gridCellDimension = 20;
-    u32 gridColor = 0x222222;
-    for (int Y=0; Y<appBackbuffer->height; Y= Y + gridCellDimension)
-    {
-        DrawLine(appBackbuffer,{0,(f32)Y}, {(f32)appBackbuffer->width-1,(f32)Y},gridColor);
-    }
-    for(int X =0; X<appBackbuffer->width; X = X + gridCellDimension)
-    {
-        DrawLine(appBackbuffer,{(f32)X,0}, {(f32)X,(f32)appBackbuffer->height-1},gridColor);
-    }
-
     DrawRectangle(appBackbuffer, 75,199,40,40);
 
-    DrawVector(appBackbuffer, {45,68}, {256,147}, 0xff0000);
+}
+
+
+
+///
+
+void DrawGrid(app_backbuffer* buffer)
+{
+    
+    u32 gridCellDimension = 1 << 4;
+    u32 gridColor = 0x222222;
+    for (int Y=0; Y<buffer->height; Y= Y + gridCellDimension)
+    {
+        DrawLine(buffer,{0,(f32)Y}, {(f32)buffer->width-1,(f32)Y},gridColor);
+    }
+    for(int X =0; X<buffer->width; X = X + gridCellDimension)
+    {
+        DrawLine(buffer,{(f32)X,0}, {(f32)X,(f32)buffer->height-1},gridColor);
+    }
 }

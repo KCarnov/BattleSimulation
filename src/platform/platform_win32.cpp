@@ -37,32 +37,18 @@ void win32_PerformanceEnd(LARGE_INTEGER* lastCounter, f32 targetMsPerFrame, b32 
 {
 
     i32 msPerFrame = (i32)(1000.0f * win32_GetSecondsElapsed(*lastCounter, win32_GetWallClock())); 
-#if 1
     DWORD sleepMs;
     if(msPerFrame < targetMsPerFrame)
     {
-        // PRINT("msPerFrame = %d\n", msPerFrame)
-        //  BUG  It seems to be working ONLY when window is showing on screen ... ?????
-        while(msPerFrame < targetMsPerFrame)
-        {
-            if(isSleepGranular)
-            {
-                sleepMs = (DWORD) (targetMsPerFrame - (f32)msPerFrame);
-                Sleep(sleepMs); //TODO: the Sleep() sleeps for double the time, i dont get it
-                // PRINT("sleep for = %u\n", sleepMs)
-            }
-            msPerFrame = (i32)(1000.0f  * win32_GetSecondsElapsed(*lastCounter, win32_GetWallClock())); 
-            // PRINT("msPerFrame = %d\n\n", msPerFrame)
-            // PRINT("bool %d \n", (msPerFrame < targetMsPerFrame))
-        }
+        sleepMs = (DWORD) (targetMsPerFrame - (f32)msPerFrame);
+        Sleep(sleepMs); //TODO: the Sleep() sleeps for double the time, i dont get it
+        msPerFrame = (i32)(1000.0f  * win32_GetSecondsElapsed(*lastCounter, win32_GetWallClock())); 
     }
     else
     {
         // TODO: Missed frame rate ! We are too slow
     }
- #endif
 
-    
 #if 1
     //f32 FPS = ((f32)g_frequency.QuadPart / (f32)win32_GetWallClock());
     msPerFrame = (i32)(1000.0f  * win32_GetSecondsElapsed(*lastCounter, win32_GetWallClock())); 
@@ -88,7 +74,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine,  int 
     // NOTE: Set the Windows scheduler granularity to 1ms so that the Sleep() can be more granular
     u32 desiredSchedulerMS = 1;
     b32 isSleepGranular = (timeBeginPeriod(desiredSchedulerMS ) == TIMERR_NOERROR);
-    if(isSleepGranular) { OutputDebugStringA("Sleep is granular"); }
+    ASSERT(isSleepGranular)
 
     WNDCLASSW WindowClass = {};
     WindowClass.style         = CS_VREDRAW | CS_HREDRAW;
