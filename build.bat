@@ -4,7 +4,7 @@ echo ====================  Compilation begin
 set  MODE=%1
 echo Build mode is %MODE%
 echo.
-REM set CommonCompilerFlags=-MT -O2 -Oi -nologo -Gm- -GR- -DDEBUG=1 -FC -Z7 
+REM set CommonCompilerFlags=-MT -O2 -nologo -Gm- -GR- -FC -Z7 
 set CommonCompilerFlags=-MT -Od -Oi -nologo -Gm- -GR- -DDEBUG=1 -FC -Z7 
 set CommonLinkerFlags=user32.lib gdi32.lib winmm.lib
 
