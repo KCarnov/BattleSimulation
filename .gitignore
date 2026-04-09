@@ -9,3 +9,6 @@
 # build folders
 build/
 bin/
+
+# startup .bat from work
+C_project_start2.bat
