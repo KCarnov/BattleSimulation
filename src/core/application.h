@@ -62,17 +62,13 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
 
 ////
 
-struct spatial_grid
-{
-    i32 bucket[WIDTH/(1<<4) * HEIGHT/(1<<4)];
-};
-
 struct soldiers
 {
     vec2 position[NumSoldiers];
     vec2 velocity[NumSoldiers];
     vec2 acceleration[NumSoldiers];
-    i32 next[NumSoldiers];
+    f32  heading[NumSoldiers];
+    i32  next[NumSoldiers];
 };
 
 struct app_state
@@ -80,7 +76,6 @@ struct app_state
     vec2 offsets;
     vec2 pos;
     soldiers soldiers;
-    spatial_grid spatialGrid;
 }; 
 
 /// NOTE: Services the platform provides the application
