@@ -74,6 +74,9 @@ struct app_state
 {
     vec2 pos;
     soldiers soldiers;
+
+    b32 showScalarField;
+    b32 showGradientField;
 }; 
 
 /// NOTE: Services the platform provides the application
