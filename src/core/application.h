@@ -68,12 +68,10 @@ struct soldiers
     vec2 velocity[NumSoldiers];
     vec2 acceleration[NumSoldiers];
     f32  heading[NumSoldiers];
-    i32  next[NumSoldiers];
 };
 
 struct app_state
 {
-    vec2 offsets;
     vec2 pos;
     soldiers soldiers;
 }; 

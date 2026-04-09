@@ -39,6 +39,7 @@ REM -EHa- : Exception handling
 REM -MD : use the dll for the CRT
 REM -MT : use static library for CRT
 
+REM /RTC1 : Enable runtime checks ! 
 REM -nologo : Removes the message : Microsoft (R) C/C++ Optimizing Compiler Version 19.50.35724 for x86 and stuff
 
 REM -Fm map file path : tells linker a location to stick a map file
