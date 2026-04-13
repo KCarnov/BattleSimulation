@@ -77,6 +77,8 @@ struct app_state
 
     b32 showScalarField;
     b32 showGradientField;
+
+    u32 selectedSoldierIndex;
 }; 
 
 /// NOTE: Services the platform provides the application

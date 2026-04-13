@@ -3,7 +3,7 @@
 
 
 #define COLOR_RGB(r,g,b) ((u64)(((u8)(b)|((u16)((u8)(g))<<8))|(((u64)(u8)(r))<<16)))
-#define NumSoldiers 20
+#define NumSoldiers 10
 #include "application.h"
 
 void RenderToBuffer(app_backbuffer* buffer)
@@ -17,7 +17,6 @@ void RenderToBuffer(app_backbuffer* buffer)
         } 
     }
 }
-
 
 //  SECTION  Renderer ?
 void DrawGrid(app_backbuffer* buffer, vec2 topLeft, vec2 bottomRight, u32 gridCellDimension);
@@ -64,6 +63,8 @@ void DrawVector(app_backbuffer* buffer, vec2 startPoint, vec2 direction, u32 col
 }
 void DrawRectangle(app_backbuffer* buffer, f32 x, f32 y, f32 width, f32 height, u32 color = 0xff22ff)
 {
+    x -= width/2;
+    y -= height/2;
     f32 xBottomRight = x + width;
     f32 yBottomRight = y + height;
     if(xBottomRight < 0  | yBottomRight < 0)   { return; } // Discard
@@ -118,96 +119,13 @@ void DrawTriangle(app_backbuffer* buffer, vec2 A, vec2 B, vec2 C, f32 heading = 
 }
 
 //  SECTION  scalar & vector grid
-inline
-vec2 GetCellPosition(u32 grid_index, u32 gridCountX, u32 gridCountY, u32 gridCellSize)
-{
-    return {(f32)((u32)grid_index % gridCountX) * gridCellSize,(f32)((u32)grid_index / gridCountY) * gridCellSize};
-}
-
-void BuildDensityField(f32* grid, vec2 position, u32 gridCountX, u32 gridCountY, u32 gridCellSize, b32 override = false)
-{
-    //NOTE: position is in grid coordinate frame
-    f32 X = position.x / (f32)gridCellSize;
-    f32 Y = position.y / (f32)gridCellSize;
-
-    i32 cellX = (i32)X;
-    i32 cellY = (i32)Y;
-    if(cellX<0){cellX = 0;}
-    if(cellY<0){cellY = 0;}
-    if(cellX>=gridCountX){cellX = gridCountX-1;}
-    if(cellY>=gridCountY){cellY = gridCountY-1;}
-
-    f32 fracX = X - cellX;
-    f32 fracY = Y - cellY;
-
-    float w00 = (1 - fracX)*(1 - fracY);
-    float w10 = fracX*(1 - fracY);
-    float w01 = (1 - fracX)*fracY;
-    float w11 = fracX*fracY;
-
-    if (override)
-    {
-        grid[cellX + cellY*(gridCountX+1)]          = w00;
-        grid[(cellX+1) + cellY*(gridCountX+1)]      = w10;
-        grid[cellX + (cellY+1)*(gridCountX+1)]      = w01;
-        grid[(cellX+1) + (cellY+1)*(gridCountX+1)]  = w11;
-    }
-    else
-    {
-        grid[cellX + cellY*(gridCountX+1)]          += w00;
-        grid[(cellX+1) + cellY*(gridCountX+1)]      += w10;
-        grid[cellX + (cellY+1)*(gridCountX+1)]      += w01;
-        grid[(cellX+1) + (cellY+1)*(gridCountX+1)]  += w11;
-    }
-}
-
-vec2 BilinearSample(vec2* field, i32 width, i32 height,
-                     f32 x, f32 y, f32 cell_size)
-{
-    // 1) Convert world → grid space
-    float gx = x / cell_size;
-    float gy = y / cell_size;
-
-    int i = (int)gx;
-    int j = (int)gy;
-
-    float fx = gx - i;
-    float fy = gy - j;
-
-    // 2) Clamp to grid (avoid out-of-bounds)
-    if (i < 0) i = 0;
-    if (j < 0) j = 0;
-    if (i >= width - 1) i = width - 2;
-    if (j >= height - 1) j = height - 2;
-
-    // 3) Compute indices
-    int idx00 = j * width + i;
-    int idx10 = j * width + (i + 1);
-    int idx01 = (j + 1) * width + i;
-    int idx11 = (j + 1) * width + (i + 1);
-
-    // 4) Fetch values
-    vec2 v00 = field[idx00];
-    vec2 v10 = field[idx10];
-    vec2 v01 = field[idx01];
-    vec2 v11 = field[idx11];
-
-    // 5) Compute weights
-    float w00 = (1 - fx) * (1 - fy);
-    float w10 = fx * (1 - fy);
-    float w01 = (1 - fx) * fy;
-    float w11 = fx * fy;
-
-    // 6) Interpolate
-    vec2 result;
-    result.x = w00*v00.x + w10*v10.x + w01*v01.x + w11*v11.x;
-    result.y = w00*v00.y + w10*v10.y + w01*v01.y + w11*v11.y;
-
-    return result;
-}
 
 //  SECTION  Math
-
+f32 Norm(vec2 v)
+{
+    f32 norm = sqrt(v.x*v.x + v.y*v.y);
+    return norm;
+}
 vec2 Normalize(vec2 v)
 {
     f32 eps = 0.001f;
@@ -254,24 +172,25 @@ b32 DEBUG_Button(app_state* state, app_inputs* appInputs, app_backbuffer* buffer
     return result;
 }
 
+//  SECTION  Boids
+
 //  SECTION  Main loop
 void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbuffer, app_inputs* appInputs)
 {
 
     // Grid info
-    constexpr u32 gridCellSize = (1<<3);
-    constexpr u32 gridCountX = (u32)180/gridCellSize;
-    constexpr u32 gridCountY = (u32)180/gridCellSize;
+    constexpr u32 gridCellSize = (1<<5);
+    constexpr u32 gridCountX = (u32)600/gridCellSize;
+    constexpr u32 gridCountY = (u32)600/gridCellSize;
     constexpr u32 gridCellCount  = gridCountX * gridCountY;
-    constexpr u32 gridPointCount  = (gridCountX+1) * (gridCountY+1);
-    f32 padding            = 400.0f;
+    f32 padding              = 100.0f;
     vec2 gridCornerTopLeft      = {padding,padding/2};
     vec2 gridCornerBottomRight  = {gridCornerTopLeft.x + (f32)(gridCountX*gridCellSize),gridCornerTopLeft.y + (f32)(gridCountY*gridCellSize)};
     f32 gridWidth  = gridCornerBottomRight.x - gridCornerTopLeft.x;
     f32 gridHeight = gridCornerBottomRight.y - gridCornerTopLeft.y;
+    vec2 gridDimension = {gridWidth, gridHeight};
 
-    f32  scalarField[gridPointCount];
-    vec2 gradientField[gridPointCount];
+    
 
 
     // INFO  Initialization of memory
@@ -280,156 +199,183 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
     if(!appMemory->isInitialized)
     {
 
-        appState->pos = {0,0};
-
-        for (i32 grid_index = 0; grid_index < gridPointCount; ++grid_index)
-        {
-            scalarField[grid_index] = 0.0f;
-            gradientField[grid_index] = {0.0f,0.0f};
-        }
-
-        
+        appState->selectedSoldierIndex = 10;
+        appState->pos = vec2({160.0f,64.0f});
+        // for (i32 grid_index = 0; grid_index < gridPointCount; ++grid_index)
+        // {
+        //     scalarField[grid_index] = 0.0f;
+        //     gradientField[grid_index] = {0.0f,0.0f};
+        // }
 
         for(i32 i=0; i<NumSoldiers ; ++i)
         {
-            appState->soldiers.position[i]     = Random_vec2(gridCornerTopLeft+vec2({30,0}), gridCornerBottomRight); //{150,220};//
-            appState->soldiers.velocity[i]     = Random_vec2(-5.0f,5.0f);
-            appState->soldiers.acceleration[i] = Random_vec2(-5.0f,5.0f);;
+            appState->soldiers.position[i]     = Random_vec2({0.1,0.1}, gridDimension - vec2{0.1,0.1}); //{150,220};//
+            appState->soldiers.velocity[i]     = Random_vec2(-50.0f,50.0f);
+            appState->soldiers.acceleration[i] = Random_vec2(0.0f,0.0f);;
             appState->soldiers.heading[i]      = Random_f32(0.0f,3.0f);
         }
 
-        appState->soldiers.position[0]    = gridCornerTopLeft + vec2({gridCellSize*8 + gridCellSize/2,gridCellSize*8 + gridCellSize/2});
-        appState->soldiers.velocity[0]     = {0,-1.0f};
-        appState->soldiers.acceleration[0]     = {0,0};
+        // appState->soldiers.position[0]    = vec2({gridCellSize*2 + gridCellSize/2, gridCellSize*1 + gridCellSize/2});
+        // appState->soldiers.velocity[0]     = {0,-0.5f};
+        // appState->soldiers.acceleration[0]     = {0,0};
 
-        appState->soldiers.position[1]    = gridCornerTopLeft + vec2({gridCellSize*2 + gridCellSize/2,gridCellSize*4+ gridCellSize/2});
-        appState->soldiers.velocity[1]     = {0,-1.0f};
-        appState->soldiers.acceleration[1]     = {0,0};
+        // appState->soldiers.position[1]    = vec2({gridCellSize*2 + gridCellSize/2, gridCellSize*3+ gridCellSize/2});
+        // appState->soldiers.velocity[1]     = {0,1.0f};
+        // appState->soldiers.acceleration[1]     = {0,0};
 
-        appState->showScalarField = true;
-        appState->showGradientField = true;
+        appState->showScalarField   = false;
+        appState->showGradientField = false;
+
+        
         appMemory->isInitialized = TRUE;
+
     }
 
-
-
+    
     // INFO  Gameplay Update and Render to buffer
-    if (appInputs->D.isPressed) { appState->soldiers.position[0].x += 1; }
-    if (appInputs->Q.isPressed) { appState->soldiers.position[0].x -= 1; }
-    if (appInputs->Z.isPressed) { appState->soldiers.position[0].y -= 1; }
-    if (appInputs->S.isPressed) { appState->soldiers.position[0].y += 1; }
-    if(appInputs->mouseInputs.isPressed) {appState->pos = appInputs->mouseInputs.mousePosition;}
-
-
-    // SECTION  UPDATE
-
-    // clearing scalar field & building it
-    for (i32 grid_index = 0; grid_index < gridPointCount; ++grid_index)
-        scalarField[grid_index] = 0.0f;
-
-    for(int i=0; i<NumSoldiers ; ++i)
-    {
-        b32 override = false;
-        if(appState->soldiers.position[i].x > 0 && appState->soldiers.position[i].y>0 &&
-        appState->soldiers.position[i].x < WIDTH && appState->soldiers.position[i].y < HEIGHT) 
-        {
-            // Convert to grid Reference frame
-            vec2 position_Rg = appState->soldiers.position[i] - gridCornerTopLeft;
-            BuildDensityField(scalarField, position_Rg, gridCountX, gridCountY, gridCellSize, override);
-        }
+    u32 selectedSoldierIndex = appState->selectedSoldierIndex;
+    if (appInputs->D.isPressed) 
+    { 
+        appState->selectedSoldierIndex -= 1; 
+        if(appState->selectedSoldierIndex < 0) {appState->selectedSoldierIndex = NumSoldiers;}
     }
+    if (appInputs->Q.isPressed) { appState->selectedSoldierIndex = (appState->selectedSoldierIndex+1)%NumSoldiers; }
 
-    scalarField[2*(gridCountX+1) + 3] = max(scalarField[2*(gridCountX+1) + 3], -1.9f);
-    scalarField[2*(gridCountX+1) + 5] = max(scalarField[2*(gridCountX+1) + 5], -1.9f);
-    scalarField[2*(gridCountX+1) + 7] = max(scalarField[2*(gridCountX+1) + 7], -1.9f);
+    if(appInputs->mouseInputs.isPressed) {appState->pos = appInputs->mouseInputs.mousePosition - gridCornerTopLeft;}
 
-    scalarField[4*(gridCountX+1) + 3] = max(scalarField[4*(gridCountX+1) + 3], -1.9f);
-    scalarField[4*(gridCountX+1) + 5] = max(scalarField[4*(gridCountX+1) + 5], -1.9f);
-    scalarField[4*(gridCountX+1) + 7] = max(scalarField[4*(gridCountX+1) + 7], -1.9f);
-    // Update gradient field 
-        // Update inner grid (with borders EXCLUDED)
-        for (i32 grid_indexY = 1; grid_indexY < gridCountY; ++grid_indexY)
+    // For debug
+    vec2 DEBUGavoidanceF = {};
+    vec2 DEBUGalignmentF = {};
+    vec2 DEBUGcohesionF  = {};
+
+
+
+    vec2 leaderPosition = appState->pos;
+    // SECTION  UPDATE
+    f32 coherenceRadius = 64.0f;
+    f32 avoidanceRadius = 8.0f;
+    for(i32 index_unit = 0 ; index_unit < NumSoldiers; ++index_unit)
+    {
+        vec2 avoidanceForce = {0,0};
+        vec2 cohesionForce  = {0,0};
+        vec2 alignmentForce = {0,0};
+
+        vec2 averagePosition = {0,0};
+        vec2 averageVelocity = {0,0};
+
+        
+        u32 numberOfNeighbour = 0.0f;
+        
+        // Goal
+        vec2 errorPosition_LeaderUnit = leaderPosition - appState->soldiers.position[index_unit];
+        f32 formationOffset = 8.0f;
+        f32 targetFormationX = errorPosition_LeaderUnit.x + formationOffset;
+
+        for(i32 index_neighbour = 0 ; index_neighbour < NumSoldiers; ++index_neighbour)
         {
-            for (i32 grid_indexX = 1; grid_indexX < gridCountX; ++grid_indexX)
-            {           
-                f32 gradient_x = scalarField[(grid_indexX+1) + grid_indexY*(gridCountX+1)] - scalarField[(grid_indexX-1) + grid_indexY*(gridCountX+1)] ;
-                f32 gradient_y = scalarField[(grid_indexX) + (grid_indexY+1)*(gridCountX+1)] - scalarField[(grid_indexX) + (grid_indexY-1)*(gridCountX+1)] ;
-                vec2 gradient = {gradient_x, gradient_y};
+            
+            if(index_neighbour == index_unit) { continue; }
 
-                //vec2 gradientAvoidance = {-density_x /2.0f,-density_y/2.0f};
-                //ASSERT(grid_index < gridCellCount && grid_index >=0)
-                gradientField[grid_indexX + grid_indexY*(gridCountX+1)] = gradient;
+            vec2 errorPosition_NeighbourUnit = appState->soldiers.position[index_neighbour] - appState->soldiers.position[index_unit];
+            vec2 relative_pos                = appState->soldiers.position[index_unit] - appState->soldiers.position[index_neighbour];
+            f32 dist = sqrt(relative_pos.x*relative_pos.x + relative_pos.y*relative_pos.y);
+            f32 dist_squared = relative_pos.x*relative_pos.x + relative_pos.y*relative_pos.y;
+
+            if(dist < (coherenceRadius))
+            {
+                numberOfNeighbour++;
+
+                // Avoidance
+                if(dist < avoidanceRadius)
+                {
+                    relative_pos = Normalize(relative_pos);
+                    avoidanceForce = avoidanceForce + ((1.0f/dist)*relative_pos);
+                }
+
+                // Cohesion
+                averagePosition = averagePosition + appState->soldiers.position[index_neighbour];
+
+                // Alignment
+                averageVelocity = averageVelocity + appState->soldiers.velocity[index_neighbour];
+
+                // Formation ?
+                if(numberOfNeighbour>0 && relative_pos.x>=0)
+                {
+                    targetFormationX = errorPosition_NeighbourUnit.x + formationOffset;
+                }
+
             }
         }
-        // Update borders (with corner EXCLUDED)
-        for (i32 grid_indexY = 1; grid_indexY < gridCountY; ++grid_indexY)
-        {   
-                i32 grid_indexX = 0;
-                f32 gradient_x = scalarField[(grid_indexX+1) + grid_indexY*(gridCountX+1)] - scalarField[(grid_indexX) + grid_indexY*(gridCountX+1)] ;
-                f32 gradient_y = scalarField[(grid_indexX) + (grid_indexY+1)*(gridCountX+1)] - scalarField[(grid_indexX) + (grid_indexY-1)*(gridCountX+1)] ;
-                vec2 gradient = {gradient_x, gradient_y};
-                gradientField[grid_indexX + grid_indexY*(gridCountX+1)] = gradient;
-        }
-        for (i32 grid_indexY = 1; grid_indexY < gridCountY; ++grid_indexY)
-        {   
-                i32 grid_indexX = gridCountX;
-                f32 gradient_x = scalarField[(grid_indexX) + grid_indexY*(gridCountX+1)] - scalarField[(grid_indexX-1) + grid_indexY*(gridCountX+1)] ;
-                f32 gradient_y = scalarField[(grid_indexX) + (grid_indexY+1)*(gridCountX+1)] - scalarField[(grid_indexX) + (grid_indexY-1)*(gridCountX+1)] ;
-                vec2 gradient = {gradient_x, gradient_y};
-                gradientField[grid_indexX + grid_indexY*(gridCountX+1)] = gradient;
-        }
-        for (i32 grid_indexX = 1; grid_indexX < gridCountX; ++grid_indexX)
-        {   
-                i32 grid_indexY = 0;
-                f32 gradient_x = scalarField[(grid_indexX+1) + grid_indexY*(gridCountX+1)] - scalarField[(grid_indexX-1) + grid_indexY*(gridCountX+1)] ;
-                f32 gradient_y = scalarField[(grid_indexX) + (grid_indexY+1)*(gridCountX+1)] - scalarField[(grid_indexX) + (grid_indexY)*(gridCountX+1)] ;
-                vec2 gradient = {gradient_x, gradient_y};
-                gradientField[grid_indexX + grid_indexY*(gridCountX+1)] = gradient;
-        }
-        for (i32 grid_indexX = 1; grid_indexX < gridCountX; ++grid_indexX)
-        {   
-                i32 grid_indexY = gridCountY;
-                f32 gradient_x = scalarField[(grid_indexX+1) + grid_indexY*(gridCountX+1)] - scalarField[(grid_indexX-1) + grid_indexY*(gridCountX+1)] ;
-                f32 gradient_y = scalarField[(grid_indexX) + (grid_indexY)*(gridCountX+1)] - scalarField[(grid_indexX) + (grid_indexY-1)*(gridCountX+1)] ;
-                vec2 gradient = {gradient_x, gradient_y};
-                gradientField[grid_indexX + grid_indexY*(gridCountX+1)] = gradient;
-        }
-        gradientField[0]          = {scalarField[1]-scalarField[0], scalarField[gridCountX+1]-scalarField[0]};
-        gradientField[gridCountX] = {scalarField[1]-scalarField[0], scalarField[gridCountX+1]-scalarField[0]};
-        gradientField[(gridPointCount-1) - gridCountX] = {scalarField[1]-scalarField[0], scalarField[gridCountX+1]-scalarField[0]};
-        gradientField[gridPointCount-1] = {scalarField[1]-scalarField[0], scalarField[gridCountX+1]-scalarField[0]};
 
+        f32 speed = Norm(appState->soldiers.velocity[index_unit]); 
+        
+
+
+        if(numberOfNeighbour>0)
+        {
+            // Cohesion
+            averagePosition = averagePosition / numberOfNeighbour;
+            vec2 cohesionVector = Normalize(averagePosition - appState->soldiers.position[index_unit]);
+            cohesionForce = 0.0f * cohesionVector;
+
+            // Alignment
+            averageVelocity = averageVelocity / numberOfNeighbour;
+            vec2 alignmentVector = Normalize(averageVelocity - appState->soldiers.velocity[index_unit]);
+            alignmentForce = 0.0f * alignmentVector;
+
+            //Formation ?
+            
+        }
+
+        // Avoidance
+        avoidanceForce =  {100.0f * avoidanceForce.x, 100.0f *avoidanceForce.y};
+
+        if(index_unit==selectedSoldierIndex)
+        {
+            DEBUGalignmentF = alignmentForce;
+            DEBUGcohesionF  = cohesionForce;
+            DEBUGavoidanceF = avoidanceForce;
+        }
+
+        
+        f32 goToFormationY = 5.0f*errorPosition_LeaderUnit.y - 8.0f*appState->soldiers.velocity[index_unit].y;
+        f32 goToFormationX = 5.0f*targetFormationX           - 8.0f*appState->soldiers.velocity[index_unit].x;
+        vec2 goToFormation = {goToFormationX, goToFormationY};
+
+        appState->soldiers.acceleration[index_unit] = 50.0f*(avoidanceForce + cohesionForce + alignmentForce ) + 10.0f*goToFormation;
+    }
     // Update soldiers dynamics
     // do not update solider 0
     for(int i=0; i<NumSoldiers ; ++i)
     {
         // Boids "bounce" over edges from padding
         f32 margin = 0.05f;
-        if(appState->soldiers.position[i].x <= (gridCornerTopLeft.x+margin) || appState->soldiers.position[i].x >= (gridCornerBottomRight.x-margin))
+        if(appState->soldiers.position[i].x <= (margin) || appState->soldiers.position[i].x >= (gridWidth-margin))
         {
             appState->soldiers.velocity[i] = {-appState->soldiers.velocity[i].x,appState->soldiers.velocity[i].y};
         }
-        if(appState->soldiers.position[i].y <= (gridCornerTopLeft.y+margin) || appState->soldiers.position[i].y >= (gridCornerBottomRight.y-margin))
+        if(appState->soldiers.position[i].y <= (margin) || appState->soldiers.position[i].y >= (gridHeight-margin))
         {
             appState->soldiers.velocity[i] = {appState->soldiers.velocity[i].x,-appState->soldiers.velocity[i].y};
         }
 
-        // if(appState->soldiers.position[i].x < 0 || appState->soldiers.position[i].y < 0)
-        //     continue;
+        appState->soldiers.position[i] = appState->soldiers.position[i] + 0.01666f * appState->soldiers.velocity[i];
+        appState->soldiers.velocity[i] = appState->soldiers.velocity[i] + 0.01666f * appState->soldiers.acceleration[i];
 
-        vec2 position_Rg = appState->soldiers.position[i] - gridCornerTopLeft;
-        // ASSERT(grid_index < gridCellCount)
-        appState->soldiers.acceleration[i] = -10.0f*BilinearSample(gradientField, gridCountX+1, gridCountY+1, position_Rg.x, position_Rg.y, (f32)gridCellSize);
-        vec2 newVelocity = appState->soldiers.velocity[i] + 1.0f * appState->soldiers.acceleration[i];
-        f32 norm = sqrt(newVelocity.x*newVelocity.x + newVelocity.y*newVelocity.y);
-        if(norm>1.0f && norm > 0.0f)
+        if (Norm(appState->soldiers.velocity[i]) > 50.0f)
         {
-            newVelocity = (1.0/norm) * newVelocity;
+            appState->soldiers.velocity[i] = 50.0f * Normalize(appState->soldiers.velocity[i]);
         }
-        appState->soldiers.velocity[i] = -2.0f*BilinearSample(gradientField, gridCountX+1, gridCountY+1, position_Rg.x, position_Rg.y, (f32)gridCellSize); //newVelocity;
-        appState->soldiers.position[i] = appState->soldiers.position[i] + 1.0f * appState->soldiers.velocity[i];
-        
+        // if (Norm(appState->soldiers.velocity[i]) < 30.0f)
+        // {
+        //     appState->soldiers.velocity[i] = 30.0f * Normalize(appState->soldiers.velocity[i]);
+        // }
+
     }
+
+    
+
+
 
     // SECTION  RENDERING
     RenderToBuffer(appBackbuffer); // Clear to color TODO: update this
@@ -438,68 +384,57 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
     // subsection  DEBUG GUI
     if (DEBUG_Button(appState, appInputs, appBackbuffer, 50, 100, 50, 20))
         appState->showScalarField   = !appState->showScalarField;
+    // if (DEBUG_Button(appState, appInputs, appBackbuffer, 50, 130, 50, 20))
+    //     appState->showGradientField = !appState->showGradientField;
 
-    if (DEBUG_Button(appState, appInputs, appBackbuffer, 50, 130, 50, 20))
-        appState->showGradientField = !appState->showGradientField;
-
-    DrawRectangleFilled(appBackbuffer,appState->pos.x,appState->pos.y,4,4);
+    DrawRectangleFilled(appBackbuffer,gridCornerTopLeft.x + appState->pos.x,gridCornerTopLeft.y + appState->pos.y,4,4);
 
     // subsection  Grid and boids stuff
     for(int i=0; i<NumSoldiers ; ++i)
     {
-        vec2 position = appState->soldiers.position[i];
-        //DrawRectangleFilled(appBackbuffer,appState->soldiers.position[i].x,appState->soldiers.position[i].y,8.0f,8.0f);
+        vec2 position =  gridCornerTopLeft + appState->soldiers.position[i];
+
+        #if 1
+        f32 size = 8.0f;
+        DrawRectangleFilled(appBackbuffer,position.x,position.y,size,size);
+        #elif 0
         vec2 unitVelocity = Normalize(appState->soldiers.velocity[i]);
         vec2 A = position + 4.5f*vec2({+unitVelocity.y, -unitVelocity.x}) - 3.0f*unitVelocity; 
         vec2 B = position + 4.5f*vec2({-unitVelocity.y, +unitVelocity.x}) - 3.0f*unitVelocity; 
         vec2 C = position + 6.0f*unitVelocity;
-
-        if(i==10)
-            DrawTriangle(appBackbuffer,A,B,C,0.0f,0xff0000);
-        else
-            DrawTriangle(appBackbuffer,A,B,C);
-        #if 1
-        DrawVector(appBackbuffer, position, appState->soldiers.velocity[i], 0xffff00, 2.0f); // Draw velocity vector
-        DrawVector(appBackbuffer, position + 2.0f*appState->soldiers.velocity[i], appState->soldiers.acceleration[i], 0xff00ff, 10.0f); // Draw acceleration vector (at velocity tip)
         #endif
-    }
 
+        vec2 goalPosition = gridCornerTopLeft + leaderPosition;
+        DrawRectangle(appBackbuffer, goalPosition.x, goalPosition.y, 4.0f, 4.0f, 0xff0000); 
 
-    if(appState->showScalarField)
-    {
-        // render a rectangle for density in each cell
-        for(i32 grid_index = 0; grid_index < gridPointCount;++grid_index)
+        if(i==selectedSoldierIndex)
         {
-            vec2 position = {(f32)(grid_index % ((i32)gridCountX+1))*(f32)gridCellSize,(f32)(grid_index / ((i32)gridCountY+1))*(f32)gridCellSize};
-            position = gridCornerTopLeft + position; // Convert to R_I
-            f32 radius = scalarField[grid_index]*5.0f;
-            u32 color = 0xff0055;
+            //DrawTriangle(appBackbuffer,A,B,C,0.0f,0xff0000);
+            #if 1
+            DrawVector(appBackbuffer, position, appState->soldiers.velocity[i], 0xffff00, 0.5f); // Draw velocity vector
+            DrawVector(appBackbuffer, position, appState->soldiers.acceleration[i], 0xff00ff, 3.0f); // Draw acceleration vector (at velocity tip)
+            // + 0.5f*appState->soldiers.velocity[i]
+            DrawVector(appBackbuffer, position, DEBUGalignmentF, 0xff0000, 5.0f);
+            DrawVector(appBackbuffer, position, DEBUGavoidanceF, 0x00ff00, 5.0f);
+            DrawVector(appBackbuffer, position, DEBUGcohesionF , 0x0000ff, 5.0f);
 
-            if(scalarField[grid_index]<0)
-            {
-                color = 0x5500ff;
-                radius = -scalarField[grid_index]*5.0f;
-            }
+            DrawRectangle(appBackbuffer, position.x, position.y, 2*avoidanceRadius, 2*avoidanceRadius, 0x00ff00); 
+            DrawRectangle(appBackbuffer, position.x, position.y, 2*coherenceRadius, 2*coherenceRadius, 0xff0000); 
 
-            DrawRectangleFilled(appBackbuffer,position.x,position.y,radius,radius, color);
+            #endif
         }
-    }
-
-    if(appState->showGradientField)
-    {
-        // render gradient field
-        for(i32 grid_index = 0; grid_index < gridPointCount;++grid_index)
+        else
         {
-            vec2 position = {(f32)(grid_index % ((i32)gridCountX+1))*(f32)gridCellSize,(f32)(grid_index / ((i32)gridCountY+1))*(f32)gridCellSize};
-            position = gridCornerTopLeft + position; // Convert to R_I
-            DrawVector(appBackbuffer, position, -2.0f*gradientField[grid_index], 0xffff00, 10.0f); // Draw gradient
+            //DrawTriangle(appBackbuffer,A,B,C);
         }
+
     }
+
 
 
     // Tests
-    DrawLine(appBackbuffer,{0,0}, appState->pos);
-    DrawRectangle(appBackbuffer, gridCornerTopLeft.x, gridCornerTopLeft.y, gridWidth, gridHeight); 
+    DrawLine(appBackbuffer,{0,0}, gridCornerTopLeft + appState->pos);
+    DrawRectangle(appBackbuffer, gridCornerTopLeft.x + gridWidth/2, gridCornerTopLeft.y + gridHeight/2, gridWidth, gridHeight); 
 
 }
 

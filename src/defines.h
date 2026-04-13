@@ -4,8 +4,8 @@
 #define UNICODE
 #endif 
 
-#define WIDTH 1920/2
-#define HEIGHT 1080/2
+#define WIDTH 1500
+#define HEIGHT 800
 
 
 #define KILOBYTES(Value) ((Value)*1024)
@@ -50,3 +50,4 @@ vec2 operator-(vec2 a, vec2 b) { return {a.x - b.x, a.y - b.y}; }
 vec2 operator/(vec2 a, f32 n) { return {a.x / n, a.y / n}; }
 vec2 operator*(f32 n ,vec2 a) { return {a.x * n, a.y * n}; }
 vec2 operator+=(vec2 a,vec2 b) { return {a.x + b.x, a.y + b.y};}
+vec2 operator+=(vec2 a,f32 b) { return {a.x + b, a.y + b};}
