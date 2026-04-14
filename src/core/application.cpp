@@ -249,9 +249,9 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
     vec2 DEBUGcohesionF  = {};
 
 
-    vec2 leaderPosition = appState->pos;
+    vec2 targetLeaderPosition = appState->pos;
     // SECTION  UPDATE
-    f32 coherenceRadius = 32.0f;
+    f32 coherenceRadius = 16.0f;
     f32 avoidanceRadius = 10.0f;
     for(i32 index_unit = 0 ; index_unit < NumSoldiers; ++index_unit)
     {
@@ -263,18 +263,23 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
         vec2 averagePosition = {0,0};
         vec2 averageVelocity = {0,0};
 
-        vec2 targetPosition = leaderPosition;
+        vec2 targetPosition = {0,0};
+        if(index_unit == selectedSoldierIndex) 
+        {targetPosition = targetLeaderPosition;}
+        else
+        {targetPosition = appState->soldiers.position[selectedSoldierIndex];}
+        
         u32 numberOfNeighbour = 0.0f;
         
         // Goal
         f32 formationOffset = 12.0f;
-        vec2 errorPosition_LeaderUnit = leaderPosition - appState->soldiers.position[index_unit];
-        f32 targetFormationX = errorPosition_LeaderUnit.x;
 
         f32 closestNeighbourToTheLeft = 1000.0f;
+        f32 closestNeighbourToTheTop  = 1000.0f;
         for(i32 index_neighbour = 0 ; index_neighbour < NumSoldiers; ++index_neighbour)
         {
             
+
             if(index_neighbour == index_unit) { continue; }
 
             vec2 relative_pos = appState->soldiers.position[index_unit] - appState->soldiers.position[index_neighbour];
@@ -303,11 +308,16 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
                 {
                     //targetPosition = appState->soldiers.position[index_unit];
                     
-                    if(relative_pos.x < closestNeighbourToTheLeft)
+                    if((relative_pos.x < closestNeighbourToTheLeft) && index_unit != selectedSoldierIndex)
                     {
                         closestNeighbourToTheLeft = relative_pos.x;
                         targetPosition.x = appState->soldiers.position[index_neighbour].x + formationOffset;
                     }
+                    // if(relative_pos.y < closestNeighbourToTheTop)
+                    // {
+                    //     closestNeighbourToTheTop = relative_pos.y;
+                    //     targetPosition.y = appState->soldiers.position[index_neighbour].y + formationOffset;
+                    // }
                 }
 
             }
@@ -320,19 +330,24 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
             // Cohesion
             averagePosition = averagePosition / numberOfNeighbour;
             vec2 cohesionVector = Normalize(averagePosition - appState->soldiers.position[index_unit]);
-            cohesionForce = 0.0f * cohesionVector;
+            cohesionForce = 1.0f * cohesionVector;
 
             // Alignment
             averageVelocity = averageVelocity / numberOfNeighbour;
             vec2 alignmentVector = Normalize(averageVelocity - appState->soldiers.velocity[index_unit]);
-            alignmentForce = 0.0f * alignmentVector;
+            alignmentForce = 1.0f * alignmentVector;
         }
         
         // Steering (v_des - v_unit)
-        vec2 desiredVelocity = targetPosition - appState->soldiers.position[index_unit];
+        vec2 desiredVelocity;
+        desiredVelocity = targetPosition - appState->soldiers.position[index_unit];
+        if (index_unit != selectedSoldierIndex)
+        desiredVelocity = targetPosition - appState->soldiers.position[index_unit] + appState->soldiers.velocity[selectedSoldierIndex]/2;
+
+        //desiredVelocity = leaderPosition - appState->soldiers.position[index_unit];
         if(Norm(desiredVelocity) >= 4.0f) // the radius of a unit ? 8.0/2.0 = 4.0
         {
-            steeringForce = 50.0f*Normalize(desiredVelocity) - appState->soldiers.velocity[index_unit];
+            steeringForce = 30.0f*Normalize(desiredVelocity) - appState->soldiers.velocity[index_unit];
         }
         else
         {
@@ -355,7 +370,7 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
         // {
         //     newForce = 50.0f * Normalize(newForce);
         // }
-        appState->soldiers.acceleration[index_unit] = (10.0f*avoidanceForce + 1.0f*cohesionForce + 1.0f*alignmentForce + 10.0f*steeringForce);
+        appState->soldiers.acceleration[index_unit] = (10.0f*avoidanceForce + 0.0f*cohesionForce + 0.0f*alignmentForce + 10.0f*steeringForce);
         
     }
     // Update soldiers dynamics
@@ -418,7 +433,7 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
         vec2 C = position + 6.0f*unitVelocity;
         #endif
 
-        vec2 goalPosition = gridCornerTopLeft + leaderPosition;
+        vec2 goalPosition = gridCornerTopLeft + targetLeaderPosition;
         DrawRectangle(appBackbuffer, goalPosition.x, goalPosition.y, 4.0f, 4.0f, 0xff0000); 
 
         if(i==selectedSoldierIndex)
@@ -432,8 +447,8 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
             DrawVector(appBackbuffer, position, DEBUGavoidanceF, 0x00ff00, 5.0f);
             DrawVector(appBackbuffer, position, DEBUGcohesionF , 0x0000ff, 5.0f);
 
-            DrawRectangle(appBackbuffer, position.x, position.y, 2*avoidanceRadius, 2*avoidanceRadius, 0x00ff00); 
-            DrawRectangle(appBackbuffer, position.x, position.y, 2*coherenceRadius, 2*coherenceRadius, 0xff0000); 
+            DrawRectangle(appBackbuffer, position.x, position.y, 2*avoidanceRadius, 2*avoidanceRadius, 0xff5500); 
+            DrawRectangle(appBackbuffer, position.x, position.y, 2*coherenceRadius, 2*coherenceRadius, 0x00ff00); 
 
             #endif
         }
