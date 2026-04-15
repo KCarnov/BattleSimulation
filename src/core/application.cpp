@@ -3,7 +3,7 @@
 
 
 #define COLOR_RGB(r,g,b) ((u64)(((u8)(b)|((u16)((u8)(g))<<8))|(((u64)(u8)(r))<<16)))
-#define NumSoldiers 60
+#define NumSoldiers 40
 #include "application.h"
 
 void RenderToBuffer(app_backbuffer* buffer)
@@ -184,7 +184,7 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
 {
 
     // Grid info
-    constexpr u32 gridCellSize = (1<<5);
+    constexpr u32 gridCellSize = (1<<4);
     constexpr u32 gridCountX = (u32)600/gridCellSize;
     constexpr u32 gridCountY = (u32)600/gridCellSize;
     constexpr u32 gridCellCount  = gridCountX * gridCountY;
@@ -256,9 +256,18 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
 
     vec2 targetMousePosition = appState->pos;
     // SECTION  UPDATE
-    f32 coherenceRadius = 32.0f;
+    f32 coherenceRadius = 16.0f;
     f32 avoidanceRadius = 8.0f;
+    
+    f32 formationOffset = 14.0f;
+    f32 formationWidth  = (f32)((30 + 1)*(formationOffset));
+    f32 formationHeight = (f32)((6 + 1)*(formationOffset));
     u32 leaderIndex = 0;
+
+    //DEBUG: 
+    i32 bucketX = 0;
+    i32 bucketY = 0;
+
     for(i32 index_unit = 0 ; index_unit < NumSoldiers; ++index_unit)
     {
         vec2 avoidanceForce = {0,0};
@@ -274,7 +283,7 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
         vec2 targetPosition = {0,0};
 
         // Goal
-        f32 formationOffset = 14.0f;
+       
         if(index_unit == leaderIndex) 
         {targetPosition = targetMousePosition;}
         else
@@ -343,16 +352,27 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
             } 
         } // End of neighbour loop
 
-        // Check formation bounds ?
+        // Check formation bounds ? Not good when moving (if copy of leader velocity is disabled)
+
         if(index_unit != leaderIndex)
         {
-            if(targetPosition.x > appState->soldiers.position[leaderIndex].x + (f32)(10*(8)))
+            if(targetPosition.x > appState->soldiers.position[leaderIndex].x + formationWidth)
             {
-                targetPosition = appState->soldiers.position[leaderIndex] + vec2{-formationOffset,formationOffset}; // offset de 10 vers Y maybe
+                targetPosition.x = appState->soldiers.position[leaderIndex].x + formationOffset;
             }
             if(targetPosition.x < appState->soldiers.position[leaderIndex].x)
             {
-                targetPosition = appState->soldiers.position[leaderIndex] + vec2{formationOffset,formationOffset}; // offset de 10 vers Y maybe
+                targetPosition.x = appState->soldiers.position[leaderIndex].x + formationOffset; // offset de 10 vers Y maybe
+            }
+
+            if(targetPosition.y > appState->soldiers.position[leaderIndex].y + formationHeight)
+            {
+                targetPosition.y = appState->soldiers.position[leaderIndex].y; // offset de 10 vers Y maybe
+            }
+
+            if(targetPosition.y < appState->soldiers.position[leaderIndex].y)
+            {
+                targetPosition.y = appState->soldiers.position[leaderIndex].y + formationOffset; // offset de 10 vers Y maybe
             }
         }
         
@@ -376,7 +396,7 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
         vec2 desiredVelocity;
         desiredVelocity = 1.0f*desiredDirection;
         if (index_unit != leaderIndex)
-        desiredDirection = desiredVelocity + appState->soldiers.velocity[leaderIndex];
+        {desiredDirection = desiredVelocity + 0.0f*appState->soldiers.velocity[leaderIndex];}
 
         //desiredVelocity = leaderPosition - appState->soldiers.position[index_unit];
         if(Norm(desiredDirection) >= 1.0f) // the radius of a unit ? 8.0/2.0 = 4.0
@@ -392,11 +412,15 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
         // Avoidance
         avoidanceForce =  {avoidanceForce.x, avoidanceForce.y};
 
+        //DEBUG:
         if(index_unit==selectedSoldierIndex)
         {
             DEBUGalignmentF = alignmentForce;
             DEBUGcohesionF  = cohesionForce;
             DEBUGavoidanceF = avoidanceForce;
+
+            bucketX = (i32)(position.x/(f32)gridCellSize);
+            bucketY = (i32)(position.y/(f32)gridCellSize);
         }
 
         // vec2 newForce = 5.0f*(avoidanceForce + cohesionForce + alignmentForce ) + 1.0f*steeringForce;
@@ -444,7 +468,7 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
     RenderToBuffer(appBackbuffer); // Clear to color TODO: update this
     DrawGrid(appBackbuffer, gridCornerTopLeft, {gridWidth,gridHeight}, gridCellSize); // Draw some grid
 
-    // subsection  DEBUG GUI
+    // subsection  DEBUG: GUI
     if (DEBUG_Button(appState, appInputs, appBackbuffer, 50, 100, 50, 20))
         appState->showScalarField   = !appState->showScalarField;
     // if (DEBUG_Button(appState, appInputs, appBackbuffer, 50, 130, 50, 20))
@@ -453,11 +477,26 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
     DrawRectangleFilled(appBackbuffer,gridCornerTopLeft.x + appState->pos.x,gridCornerTopLeft.y + appState->pos.y,4,4);
 
     // subsection  Grid and boids stuff
+
+    // DEBUG: Formation area
+    DrawRectangle(appBackbuffer, gridCornerTopLeft.x + appState->soldiers.position[leaderIndex].x + formationWidth/2, 
+                                 gridCornerTopLeft.y + appState->soldiers.position[leaderIndex].y + formationHeight/2, 
+                                 formationWidth, 
+                                 formationHeight, 
+                                 0xff0000); 
+
+
+    // DEBUG: spatial partitioning bucket
+    DrawRectangle(appBackbuffer, gridCornerTopLeft.x + bucketX*(gridCellSize) + gridCellSize/2, 
+                                 gridCornerTopLeft.y + bucketY*(gridCellSize) + gridCellSize/2, 
+                                 gridCellSize, gridCellSize, 0xFF00FF);   
+    
+    // DEBUG:
     for(int i=0; i<NumSoldiers ; ++i)
     {
         vec2 position =  gridCornerTopLeft + appState->soldiers.position[i];
 
-        #if 1
+        #if 1 
         f32 size = 8.0f;
         DrawRectangleFilled(appBackbuffer,position.x,position.y,size,size);
         #elif 0
@@ -466,6 +505,7 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
         vec2 B = position + 4.5f*vec2({-unitVelocity.y, +unitVelocity.x}) - 3.0f*unitVelocity; 
         vec2 C = position + 6.0f*unitVelocity;
         #endif
+
 
         vec2 goalPosition = gridCornerTopLeft + targetMousePosition;
         DrawRectangle(appBackbuffer, goalPosition.x, goalPosition.y, 4.0f, 4.0f, 0xff0000); 
@@ -496,8 +536,8 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
 
 
     // Tests
-    DrawLine(appBackbuffer,{0,0}, gridCornerTopLeft + appState->pos);
-    DrawRectangle(appBackbuffer, gridCornerTopLeft.x + gridWidth/2, gridCornerTopLeft.y + gridHeight/2, gridWidth, gridHeight); 
+    DrawLine(appBackbuffer,{0,0}, gridCornerTopLeft + appState->pos, 0xDDAADD);
+    DrawRectangle(appBackbuffer, gridCornerTopLeft.x + gridWidth/2, gridCornerTopLeft.y + gridHeight/2, gridWidth, gridHeight, 0xAAAAAA); // grid border
 
 }
 
