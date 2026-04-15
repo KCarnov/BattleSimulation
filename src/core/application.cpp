@@ -1,9 +1,8 @@
 #include <stdlib.h>
 #include <math.h>
 
-
 #define COLOR_RGB(r,g,b) ((u64)(((u8)(b)|((u16)((u8)(g))<<8))|(((u64)(u8)(r))<<16)))
-#define NumSoldiers 40
+#define NumSoldiers 60
 #include "application.h"
 
 void RenderToBuffer(app_backbuffer* buffer)
@@ -119,6 +118,10 @@ void DrawTriangle(app_backbuffer* buffer, vec2 A, vec2 B, vec2 C, f32 heading = 
 }
 
 //  SECTION  scalar & vector grid
+void BuildDensityGrid(vec2* field)
+{
+
+}
 
 //  SECTION  Math
 f32 Norm(vec2 v)
@@ -153,11 +156,11 @@ f32 max(f32 a, f32 b)
     result = (fabsf(a) < fabsf(b)) ? b : a;
     return result;
 }
-
 f32 sign(f32 x)
 {
     return ((x > 0) - (x < 0));
 }
+
 //  SECTION  DEBUG Immediate UI 
 b32 DEBUG_Button(app_state* state, app_inputs* appInputs, app_backbuffer* buffer, f32 x, f32 y, f32 width, f32 height, u32 color = 0x00ff00)
 {
@@ -196,7 +199,8 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
     vec2 gridDimension = {gridWidth, gridHeight};
 
     
-
+    f32  scalarField[gridCellCount];
+    vec2 gradientField[gridCellCount];
 
     // INFO  Initialization of memory
     ASSERT(sizeof(app_state) <= appMemory->permanentStorageSize);
@@ -206,11 +210,7 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
 
         appState->selectedSoldierIndex = 0;
         appState->pos = vec2({260.0f,164.0f});
-        // for (i32 grid_index = 0; grid_index < gridPointCount; ++grid_index)
-        // {
-        //     scalarField[grid_index] = 0.0f;
-        //     gradientField[grid_index] = {0.0f,0.0f};
-        // }
+
 
         for(i32 i=0; i<NumSoldiers ; ++i)
         {
@@ -252,7 +252,12 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
     vec2 DEBUGavoidanceF = {};
     vec2 DEBUGalignmentF = {};
     vec2 DEBUGcohesionF  = {};
-
+    // init field
+    for (i32 grid_index = 0; grid_index < gridCellCount; ++grid_index)
+    {
+        scalarField[grid_index] = 1.0f;
+        gradientField[grid_index] = {1.0f,1.0f};
+    }
 
     vec2 targetMousePosition = appState->pos;
     // SECTION  UPDATE
@@ -268,6 +273,7 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
     i32 bucketX = 0;
     i32 bucketY = 0;
 
+    // Loop soldiers once
     for(i32 index_unit = 0 ; index_unit < NumSoldiers; ++index_unit)
     {
         vec2 avoidanceForce = {0,0};
@@ -283,15 +289,12 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
         vec2 targetPosition = {0,0};
 
         // Goal
-       
         if(index_unit == leaderIndex) 
         {targetPosition = targetMousePosition;}
         else
         {targetPosition = appState->soldiers.position[leaderIndex] + vec2{formationOffset, 0};}
         
         u32 numberOfNeighbour = 0.0f;
-        
-        
 
         f32 closestNeighbourToTheLeft = 1000.0f;
         f32 closestNeighbourToTheTop  = 1000.0f;
@@ -300,8 +303,6 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
 
         for(i32 index_neighbour = 0 ; index_neighbour < NumSoldiers; ++index_neighbour)
         {
-            
-
             if(index_neighbour == index_unit) { continue; }
 
             vec2 relative_pos = position - appState->soldiers.position[index_neighbour];
@@ -477,6 +478,14 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
     DrawRectangleFilled(appBackbuffer,gridCornerTopLeft.x + appState->pos.x,gridCornerTopLeft.y + appState->pos.y,4,4);
 
     // subsection  Grid and boids stuff
+    // DEBUG: Draw fields
+    for (i32 grid_index = 0; grid_index < gridCellCount; ++grid_index)
+    {
+        vec2 centerOfCell = gridCornerTopLeft + vec2{(f32)(grid_index % (i32)gridCountX)*gridCellSize,(f32)(grid_index / (i32)gridCountX)*gridCellSize};
+        vec2 dir = gradientField[grid_index];
+        DrawVector(appBackbuffer, centerOfCell + vec2{gridCellSize/2,gridCellSize/2}, dir, 0xff00ff, 5.0f);
+    }
+
 
     // DEBUG: Formation area
     DrawRectangle(appBackbuffer, gridCornerTopLeft.x + appState->soldiers.position[leaderIndex].x + formationWidth/2, 
@@ -492,7 +501,7 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
                                  gridCellSize, gridCellSize, 0xFF00FF);   
     
     // DEBUG:
-    for(int i=0; i<NumSoldiers ; ++i)
+    for(i32 i=0; i<NumSoldiers ; ++i)
     {
         vec2 position =  gridCornerTopLeft + appState->soldiers.position[i];
 
@@ -526,12 +535,8 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
 
             #endif
         }
-        else
-        {
-            //DrawTriangle(appBackbuffer,A,B,C);
-        }
-
     }
+
 
 
 
@@ -547,7 +552,7 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
 void DrawGrid(app_backbuffer* buffer, vec2 topLeft, vec2 dim, u32 gridCellDimension)
 {
     u32 gridColor = 0x666666;
-    for (int Y = topLeft.y; Y < topLeft.y + dim.y; Y= Y + gridCellDimension)
+    for (int Y = topLeft.y; Y < topLeft.y + dim.y; Y = Y + gridCellDimension)
     {
         DrawLine(buffer,{topLeft.x,(f32)Y}, {topLeft.x + dim.x, (f32)Y},gridColor);
     }
