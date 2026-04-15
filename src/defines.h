@@ -48,6 +48,11 @@ struct vec2
 vec2 operator+(vec2 a, vec2 b) { return {a.x + b.x, a.y + b.y}; }
 vec2 operator-(vec2 a, vec2 b) { return {a.x - b.x, a.y - b.y}; }
 vec2 operator/(vec2 a, f32 n) { return {a.x / n, a.y / n}; }
+vec2 operator/(f32 n, vec2 a)
+{ 
+    ASSERT(a.x != 0 && a.y != 0)
+    return {n/a.x, n/a.y}; 
+}
 vec2 operator*(f32 n ,vec2 a) { return {a.x * n, a.y * n}; }
 vec2 operator+=(vec2 a,vec2 b) { return {a.x + b.x, a.y + b.y};}
 vec2 operator+=(vec2 a,f32 b) { return {a.x + b, a.y + b};}
