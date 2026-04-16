@@ -209,7 +209,7 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
     {
 
         appState->selectedSoldierIndex = 0;
-        appState->pos = vec2({260.0f,164.0f});
+        appState->pos = vec2({60.0f,304.0f});
 
 
         for(i32 i=0; i<NumSoldiers ; ++i)
@@ -239,12 +239,12 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
     
     // INFO  Gameplay Update and Render to buffer
     u32 selectedSoldierIndex = appState->selectedSoldierIndex;
-    if (appInputs->D.isPressed) 
+    if (appInputs->Q.isPressed) 
     { 
         appState->selectedSoldierIndex -= 1; 
         if(appState->selectedSoldierIndex < 0) {appState->selectedSoldierIndex = NumSoldiers-1;}
     }
-    if (appInputs->Q.isPressed) { appState->selectedSoldierIndex = (appState->selectedSoldierIndex+1)%NumSoldiers; }
+    if (appInputs->D.isPressed) { appState->selectedSoldierIndex = (appState->selectedSoldierIndex+1)%NumSoldiers; }
 
     if(appInputs->mouseInputs.isPressed) {appState->pos = appInputs->mouseInputs.mousePosition - gridCornerTopLeft;}
 
@@ -296,10 +296,31 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
         
         u32 numberOfNeighbour = 0.0f;
 
+
+
+        neighbours neighbours = {};
+        neighbours.left  = {1000.0f,0.0f};
+        neighbours.right = {-1000.0f,0.0f};
+        neighbours.top   = {0.0f,1000.0f};
+        neighbours.top_left  = {1000.0f,1000.0f};
+        neighbours.top_right = {-1000.0f,1000.0f};
+
         f32 closestNeighbourToTheLeft = 1000.0f;
         f32 closestNeighbourToTheTop  = 1000.0f;
-
+        f32 closestNeighbourToTheRight= 1000.0f;
         f32 speed = Norm(appState->soldiers.velocity[index_unit]); 
+
+        // Formation ?
+        b32 LeftQuadrant     = false;
+        b32 RightQuadrant    = false;
+        b32 TopQuadrant      = false;
+        b32 TopLeftQuadrant  = false;
+        b32 TopRightQuadrant = false;
+
+        u8 neighboursMaskPresent = 0;  
+        u8 neighboursMaskVacant  = 0; 
+        //   0 0  0  0  0  0 0 0
+        //          tl tr  l t r
 
         for(i32 index_neighbour = 0 ; index_neighbour < NumSoldiers; ++index_neighbour)
         {
@@ -327,54 +348,81 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
                 averageVelocity = averageVelocity + appState->soldiers.velocity[index_neighbour];
 
                 // Formation ?
-                b32 horizontalQuadrant = fabs(relative_pos.y) < fabs(relative_pos.x) && relative_pos.x>0;
-                b32 verticalQuadrant   = fabs(relative_pos.y) > fabs(relative_pos.x) && relative_pos.y>0;
+                LeftQuadrant     = (fabs(relative_pos.y) < 2.0f*fabs(relative_pos.x)) && relative_pos.x>0;
+                RightQuadrant    = (fabs(relative_pos.y) < 2.0f*fabs(relative_pos.x)) && relative_pos.x<0;
+                TopQuadrant      = (fabs(relative_pos.y) > 2.0f*fabs(relative_pos.x)) && relative_pos.y>0;
+
+                // TopQuadrant      = (fabs(relative_pos.y) > 2.0f*fabs(relative_pos.x)) && relative_pos.y>0;
+                // TopLeftQuadrant  = (fabs(relative_pos.y) <= 2.0f*fabs(relative_pos.x) && fabs(relative_pos.y) >= 0.5f*fabs(relative_pos.x)) && relative_pos.x>0;
+                // TopRightQuadrant = (fabs(relative_pos.y) <= 2.0f*fabs(relative_pos.x) && fabs(relative_pos.y) >= 0.5f*fabs(relative_pos.x)) && relative_pos.x<0;
+
                 if(numberOfNeighbour>0 && index_unit != leaderIndex)
                 {
-                    if(horizontalQuadrant)
-                    {
-                        if((fabs(relative_pos.x) < closestNeighbourToTheLeft))
-                        {
-                            closestNeighbourToTheLeft = relative_pos.x;
-                            targetPosition.x = appState->soldiers.position[index_neighbour].x + sign(relative_pos.x)*formationOffset;
-
-                        }
+                    if(LeftQuadrant){
+                        if((fabs(relative_pos.x) < fabs(neighbours.left.x)))
+                        { neighbours.left = appState->soldiers.position[index_neighbour]; neighboursMaskPresent = neighboursMaskPresent | (1 << 2); }
                     }  
-                    if(verticalQuadrant)
-                    {
-                        if((fabs(relative_pos.y) < closestNeighbourToTheTop))
-                        {
-                            closestNeighbourToTheTop = relative_pos.y;
-                            targetPosition.y = appState->soldiers.position[index_neighbour].y + sign(relative_pos.y)*formationOffset;
-                        }     
-                    }
+                    if(RightQuadrant){
+                        if((fabs(relative_pos.x) < fabs(neighbours.right.x)))
+                        { neighbours.right = appState->soldiers.position[index_neighbour]; neighboursMaskPresent = neighboursMaskPresent | (1 << 0); }
+                    }       
+                    if(TopQuadrant){
+                        if((fabs(relative_pos.y) < fabs(neighbours.top.y)))
+                        { neighbours.top = appState->soldiers.position[index_neighbour]; neighboursMaskPresent = neighboursMaskPresent | (1 << 1); }
+                    }       
                 }
 
             } 
         } // End of neighbour loop
+        
 
+        if(index_unit != leaderIndex)
+        {
+            neighboursMaskVacant = ~neighboursMaskPresent;
+            //targetPosition = appState->soldiers.position[leaderIndex] + vec2{formationOffset,0};
+
+            if(neighboursMaskPresent & (u8)(1 << 2))   // neighboursMask & (1 << 2)
+            {
+                targetPosition.x = neighbours.left.x + formationOffset;
+            }
+            if(neighboursMaskPresent & (u8)(1 << 1))
+            {
+                targetPosition.y = neighbours.top.y  + formationOffset;
+            }
+            if((neighboursMaskPresent & (1 << 1)) && (neighboursMaskVacant & (1 << 0)) )
+            {
+                targetPosition.x = targetPosition.x  + formationOffset;
+                targetPosition.y = targetPosition.y  - formationOffset;
+            }
+            // if(numberOfNeighbour>0 & !(neighboursMask & ((1 << 1)|(1<<0)))  )  // Top right is Top & Right
+            // {
+            //     targetPosition.x = neighbours.left.x + formationOffset;
+            //     targetPosition.y = neighbours.left.y;
+            // }
+            
+        }
         // Check formation bounds ? Not good when moving (if copy of leader velocity is disabled)
 
         if(index_unit != leaderIndex)
         {
-            if(targetPosition.x > appState->soldiers.position[leaderIndex].x + formationWidth)
-            {
-                targetPosition.x = appState->soldiers.position[leaderIndex].x + formationOffset;
-            }
-            if(targetPosition.x < appState->soldiers.position[leaderIndex].x)
-            {
-                targetPosition.x = appState->soldiers.position[leaderIndex].x + formationOffset; // offset de 10 vers Y maybe
-            }
+            // if(targetPosition.x > appState->soldiers.position[leaderIndex].x + formationWidth)
+            // {
+            //     targetPosition.y = targetPosition.y + formationOffset;
+            // }
+            // if(targetPosition.x < appState->soldiers.position[leaderIndex].x)
+            // {
+            //     targetPosition.x = appState->soldiers.position[leaderIndex].x + formationOffset; // offset de 10 vers Y maybe
+            // }
 
-            if(targetPosition.y > appState->soldiers.position[leaderIndex].y + formationHeight)
-            {
-                targetPosition.y = appState->soldiers.position[leaderIndex].y; // offset de 10 vers Y maybe
-            }
+            // if(targetPosition.y > appState->soldiers.position[leaderIndex].y + formationHeight)
+            // {
+            //     targetPosition.y = appState->soldiers.position[leaderIndex].y; // offset de 10 vers Y maybe
+            // }
 
-            if(targetPosition.y < appState->soldiers.position[leaderIndex].y)
-            {
-                targetPosition.y = appState->soldiers.position[leaderIndex].y + formationOffset; // offset de 10 vers Y maybe
-            }
+            // if(targetPosition.y < appState->soldiers.position[leaderIndex].y)
+            // {
+            //     targetPosition.y = appState->soldiers.position[leaderIndex].y + formationOffset; // offset de 10 vers Y maybe
+            // }
         }
         
         if(numberOfNeighbour>0)
@@ -395,9 +443,10 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
         desiredDirection = targetPosition - position;
 
         vec2 desiredVelocity;
+        f32 discipline = 1.0f;
         desiredVelocity = 1.0f*desiredDirection;
         if (index_unit != leaderIndex)
-        {desiredDirection = desiredVelocity + 0.0f*appState->soldiers.velocity[leaderIndex];}
+        {desiredDirection = desiredVelocity + discipline*appState->soldiers.velocity[leaderIndex];} // discipline = 0 : soldiers moves with lag, discipline = 1 : soldiers follows leader more quickly
 
         //desiredVelocity = leaderPosition - appState->soldiers.position[index_unit];
         if(Norm(desiredDirection) >= 1.0f) // the radius of a unit ? 8.0/2.0 = 4.0

@@ -62,6 +62,11 @@ void ApplicationUpdateAndRender(app_memory* appMemory, app_backbuffer* appBackbu
 
 ////
 
+struct neighbours
+{
+    vec2 left,right,top,top_right,top_left;
+};
+
 struct soldiers
 {
     vec2 position[NumSoldiers];
